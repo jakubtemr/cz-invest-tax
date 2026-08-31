@@ -1,0 +1,49 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: invest
+          POSTGRES_PASSWORD: invest
+          POSTGRES_DB: invest
+        ports:
+          - 5459:5432
+        options: >-
+          --health-cmd "pg_isready -U invest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://invest:invest@localhost:5459/invest
+      TEST_DATABASE_URL: postgres://invest:invest@localhost:5459/invest_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # docker-compose creates the test database from an init script; the service container
+      # does not run one, so it is created here.
+      - run: psql "$DATABASE_URL" -c 'CREATE DATABASE invest_test'
+
+      - run: pnpm db:push:test
+
+      - run: pnpm verify
