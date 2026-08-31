@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:18
+    container_name: invest-db
+    environment:
+      POSTGRES_USER: invest
+      POSTGRES_PASSWORD: invest
+      POSTGRES_DB: invest
+    ports:
+      - "127.0.0.1:5459:5432"
+    volumes:
+      # PG18 image přesunul VOLUME na /var/lib/postgresql (rodič data adresáře)
+      - invest-pgdata:/var/lib/postgresql
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
+
+volumes:
+  invest-pgdata:

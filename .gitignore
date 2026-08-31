@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+
+# environment - the example is the only one that belongs in git
+.env*
+!.env.example
+
+*.local
+.DS_Store

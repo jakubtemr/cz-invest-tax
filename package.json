@@ -1,0 +1,57 @@
+{
+  "name": "cz-invest-tax",
+  "version": "1.0.0",
+  "description": "Portfolio tracker for Trading 212 and Freedom24 with a Czech investment-tax module: FIFO matching, the three-year time test, dividends and foreign withholding credit.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jakubtemr/cz-invest-tax.git"
+  },
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,client \"tsx watch --env-file-if-exists=.env src/server/index.ts\" \"vite\"",
+    "dev:server": "tsx watch --env-file-if-exists=.env src/server/index.ts",
+    "dev:client": "vite",
+    "db:push": "drizzle-kit push",
+    "db:push:test": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://invest:invest@localhost:5459/invest_test} drizzle-kit push --force",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
+    "test:tax-coverage": "vitest run --coverage.enabled --coverage.include='src/server/tax/**' --coverage.include='src/shared/**' --coverage.thresholds.lines=100 --coverage.thresholds.branches=100 --coverage.thresholds.functions=100 --coverage.thresholds.statements=100 src/server/tax src/shared",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --write .",
+    "build": "vite build",
+    "verify": "pnpm typecheck && biome check . && pnpm test && pnpm test:tax-coverage && pnpm build"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@orpc/client": "^1.15.0",
+    "@orpc/server": "^1.15.0",
+    "decimal.js": "^10.6.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.1",
+    "pg": "^8.16.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.8",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "concurrently": "^9.1.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}
