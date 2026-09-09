@@ -186,8 +186,8 @@ export function reconcile(
 }
 
 export function collectYears(
-  saleRows: readonly SaleTableRow[],
-  dividendRows: readonly DividendTableRow[],
+  saleRows: readonly { soldAt: Date }[],
+  dividendRows: readonly { paidOn: Date }[],
   interestRows: readonly { occurredAt: Date }[],
 ): number[] {
   const years = new Set<number>()

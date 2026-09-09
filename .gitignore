@@ -2,6 +2,18 @@ node_modules/
 dist/
 coverage/
 
+# The database is one file and it holds the whole portfolio - it never belongs in git.
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+# a stray connection URL used to land here as a directory tree
+postgres:/
+mysql:/
+
 # environment - the example is the only one that belongs in git
 .env*
 !.env.example

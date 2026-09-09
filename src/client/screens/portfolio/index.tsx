@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, errorText, type Overview } from '../../api.js'
-import type { MessageKey } from '../../i18n/cs.js'
 import { useLang } from '../../i18n/index.js'
 import { EmptyState, Section, Skeleton } from '../../ui.js'
 import { AccountCard } from './AccountCard.js'
@@ -117,7 +116,7 @@ export function Portfolio() {
 }
 
 function SyncNote({ state }: { state: SyncState }) {
-  const { t } = useLang()
+  const { t, tDynamic } = useLang()
   switch (state.kind) {
     case 'idle':
       return null
@@ -130,7 +129,7 @@ function SyncNote({ state }: { state: SyncState }) {
         <span className="sync-note">
           {t('portfolio.sync.progress', {
             ...counts(state.status),
-            phase: t(`portfolio.phase.${state.status.phase}` as MessageKey),
+            phase: tDynamic(`portfolio.phase.${state.status.phase}`),
             pages: state.status.pagesFetched,
             seconds: state.status.startedAt
               ? Math.round((Date.now() - new Date(state.status.startedAt).getTime()) / MS_PER_SECOND)

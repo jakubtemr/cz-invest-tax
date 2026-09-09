@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().default('postgres://invest:invest@localhost:5459/invest'),
+  // One SQLite file. Gitignored by default, because it holds the whole portfolio.
+  DATABASE_FILE: z.string().default('./data/invest.db'),
   T212_API_KEY: z.string().optional(),
   T212_API_SECRET: z.string().optional(),
   T212_API_BASE: z

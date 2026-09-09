@@ -107,9 +107,12 @@ export class SyncService {
       const instrumentId = await this.ensureInstrument(position.instrument)
       rows.push(mapPosition(position, accountId, instrumentId))
     }
-    await this.db.transaction(async (tx) => {
-      await tx.delete(positions).where(and(eq(positions.accountId, accountId), eq(positions.source, 'sync')))
-      if (rows.length > 0) await tx.insert(positions).values(rows)
+    // Synchronous body: better-sqlite3 statements are in-process calls, not round trips.
+    this.db.transaction((tx) => {
+      tx.delete(positions)
+        .where(and(eq(positions.accountId, accountId), eq(positions.source, 'sync')))
+        .run()
+      if (rows.length > 0) tx.insert(positions).values(rows).run()
     })
     return rows.length
   }

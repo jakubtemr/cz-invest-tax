@@ -97,8 +97,8 @@ describe('totalLookup', () => {
 describe('collectYears', () => {
   it('lists every year with data plus the current one, newest first', () => {
     const years = collectYears(
-      [{ soldAt: new Date('2024-05-01T00:00:00Z') }] as never,
-      [{ paidOn: new Date('2022-02-01T00:00:00Z') }] as never,
+      [{ soldAt: new Date('2024-05-01T00:00:00Z') }],
+      [{ paidOn: new Date('2022-02-01T00:00:00Z') }],
       [{ occurredAt: new Date('2024-01-01T00:00:00Z') }],
     )
     expect(years).toEqual([...years].sort((a, b) => b - a))

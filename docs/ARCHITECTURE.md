@@ -1,11 +1,12 @@
 # Architecture
 
 A single-user local application: a portfolio tracker across two brokers plus a Czech investment-tax
-module. No auth, no multi-tenancy, no cloud — it runs on `localhost` against a Postgres container.
+module. No auth, no multi-tenancy, no cloud, no database server — it runs on `localhost` against
+a SQLite file.
 
 ## Stack
 
-React 19 + Vite on the front, Hono + oRPC on the back, Drizzle over PostgreSQL 18, Zod at every
+React 19 + Vite on the front, Hono + oRPC on the back, Drizzle over SQLite, Zod at every
 boundary, Vitest for tests. Node 22 or newer is required: `pragueDay` needs a full-ICU build to
 resolve the Europe/Prague zone.
 
@@ -55,9 +56,14 @@ The tax rules themselves, the interpretations taken and the gaps are in [TAX.md]
 
 ## Design rules
 
-**Money never becomes a float.** Drizzle `numeric` columns arrive as strings and stay strings
-through the domain layer; arithmetic goes through `decimal.js`, and `Number()` appears only in the
-UI, for display or for sorting.
+**Money never becomes a float.** SQLite has no exact decimal type, so amounts are stored as TEXT and
+stay strings all the way through the domain layer; arithmetic goes through `decimal.js` and never
+through SQL, and `Number()` appears only in the UI, for display or for sorting. A REAL column would
+have turned every amount into a float at the storage layer, silently.
+
+**One file, no server.** A single-user ledger of a few thousand rows has nothing to gain from a
+database process, and every contributor gains a checkout that runs with `pnpm install && pnpm dev`.
+The cost is that `better-sqlite3` is synchronous, so transaction callbacks are synchronous too.
 
 **The pure core is synchronous.** Exchange rates are prefetched into a map before the math starts,
 so `summarizeYear` and everything under it is a pure function of its inputs — which is what makes

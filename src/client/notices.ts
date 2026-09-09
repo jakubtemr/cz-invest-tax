@@ -1,4 +1,3 @@
-import type { MessageKey } from './i18n/cs.js'
 import { useLang } from './i18n/index.js'
 import type { Notice, Severity } from './ui.js'
 
@@ -15,10 +14,10 @@ function severityOf(value: string): Severity {
 }
 
 export function useNotices(warnings: readonly ServerWarning[]): Notice[] {
-  const { t } = useLang()
+  const { tDynamic } = useLang()
   return warnings.map((warning, index) => ({
     key: `${warning.code}-${index}`,
     severity: severityOf(warning.severity),
-    text: t(`warn.${warning.code}` as MessageKey, warning.params),
+    text: tDynamic(`warn.${warning.code}`, warning.params),
   }))
 }

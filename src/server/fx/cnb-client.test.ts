@@ -1,10 +1,9 @@
-import { sql } from 'drizzle-orm'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDb } from '../db/client.js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fxRates } from '../db/schema.js'
+import { createTestDb, resetDb } from '../db/testing.js'
 import { CnbFxClient } from './cnb-client.js'
 
-const db = createDb(process.env.TEST_DATABASE_URL ?? 'postgres://invest:invest@localhost:5459/invest_test')
+const db = createTestDb()
 
 const cnbBody = {
   rates: [
@@ -18,11 +17,7 @@ function jsonResponse(body: unknown) {
 }
 
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE fx_rates RESTART IDENTITY`)
-})
-
-afterAll(async () => {
-  await db.$client.end()
+  resetDb(db)
 })
 
 describe('CnbFxClient', () => {

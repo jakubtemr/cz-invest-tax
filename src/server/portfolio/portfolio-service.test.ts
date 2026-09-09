@@ -1,19 +1,12 @@
-import { sql } from 'drizzle-orm'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { createDb } from '../db/client.js'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createTestDb, resetDb } from '../db/testing.js'
 import { ManualService } from '../manual/manual-service.js'
 import { PortfolioService } from './portfolio-service.js'
 
-const db = createDb(process.env.TEST_DATABASE_URL ?? 'postgres://invest:invest@localhost:5459/invest_test')
+const db = createTestDb()
 
 beforeEach(async () => {
-  await db.execute(
-    sql`TRUNCATE accounts, instruments, positions, lots, sales, dividends, cash_transactions, snapshots RESTART IDENTITY CASCADE`,
-  )
-})
-
-afterAll(async () => {
-  await db.$client.end()
+  resetDb(db)
 })
 
 describe('PortfolioService.overview', () => {

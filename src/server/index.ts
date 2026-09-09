@@ -12,7 +12,7 @@ import { T212Client } from './t212/client.js'
 import { TaxService } from './tax/tax-service.js'
 
 const env = loadEnv()
-const db = createDb(env.DATABASE_URL)
+const db = createDb(env.DATABASE_FILE)
 
 const t212Configured = Boolean(env.T212_API_KEY && env.T212_API_SECRET)
 const syncRunner = t212Configured

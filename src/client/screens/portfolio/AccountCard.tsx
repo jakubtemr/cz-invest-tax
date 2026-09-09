@@ -1,12 +1,11 @@
 import type { OverviewAccount } from '../../api.js'
 import { useFormat } from '../../format.js'
-import type { MessageKey } from '../../i18n/cs.js'
 import { useLang } from '../../i18n/index.js'
 import { Card } from '../../ui.js'
 import { PnlCell } from './PnlCell.js'
 
 export function AccountCard({ account }: { account: OverviewAccount }) {
-  const { t } = useLang()
+  const { t, tDynamic } = useLang()
   const { money } = useFormat()
   const snapshot = account.snapshot
   const valued = account.positions.filter((position) => position.currentValue != null)
@@ -20,7 +19,7 @@ export function AccountCard({ account }: { account: OverviewAccount }) {
 
   return (
     <Card
-      label={t(`broker.${account.broker}` as MessageKey)}
+      label={tDynamic(`broker.${account.broker}`)}
       value={money(snapshot?.totalValue ?? totalFromPositions, currency)}
     >
       {snapshot ? (

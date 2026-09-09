@@ -30,10 +30,9 @@ export class PortfolioService {
         })
         .from(positions)
         .innerJoin(instruments, eq(positions.instrumentId, instruments.id)),
-      this.db
-        .selectDistinctOn([snapshots.accountId])
-        .from(snapshots)
-        .orderBy(snapshots.accountId, desc(snapshots.takenAt)),
+      // Newest first, then the first row per account wins - SQLite has no DISTINCT ON, and one
+      // snapshot per sync is far too few rows to be worth a window function.
+      this.db.select().from(snapshots).orderBy(desc(snapshots.takenAt)),
       this.db
         .select({
           id: lots.id,

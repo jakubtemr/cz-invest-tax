@@ -1,13 +1,12 @@
 import Decimal from 'decimal.js'
-import { sql } from 'drizzle-orm'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { createDb } from '../db/client.js'
+import { beforeEach, describe, expect, it } from 'vitest'
 import * as schema from '../db/schema.js'
+import { createTestDb, resetDb } from '../db/testing.js'
 import { AppError } from '../errors.js'
 import type { CnbFxClient } from '../fx/cnb-client.js'
 import { TaxService } from './tax-service.js'
 
-const db = createDb(process.env.TEST_DATABASE_URL ?? 'postgres://invest:invest@localhost:5459/invest_test')
+const db = createTestDb()
 
 // fx stub instead of the CNB API: USD = 24, CZK = 1; everything else is "not quoted"
 const STUB_RATES: Record<string, number> = { USD: 24, CZK: 1 }
@@ -93,13 +92,7 @@ async function seed() {
 }
 
 beforeEach(async () => {
-  await db.execute(
-    sql`TRUNCATE accounts, instruments, positions, lots, sales, dividends, cash_transactions, snapshots, fx_rates RESTART IDENTITY CASCADE`,
-  )
-})
-
-afterAll(async () => {
-  await db.$client.end()
+  resetDb(db)
 })
 
 describe('TaxService.overview', () => {

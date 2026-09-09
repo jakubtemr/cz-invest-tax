@@ -12,6 +12,23 @@ import { toTaxLot, toTaxSale } from '../tax/rows.js'
 // no single currency of its own.
 const F24_ACCOUNT_CURRENCY = 'MULTI'
 
+const zero = (): Decimal => new Decimal(0)
+
+// Current value and unrealised P/L, or nulls while no price has been entered. One place, because
+// both entering a price and re-aggregating the lots have to reach the same numbers.
+function valuation(
+  quantity: string,
+  currentPrice: string | null,
+  totalCost: string | null,
+): { currentValue: string | null; unrealizedPnl: string | null } {
+  if (currentPrice === null) return { currentValue: null, unrealizedPnl: null }
+  const value = new Decimal(quantity).times(currentPrice)
+  return {
+    currentValue: value.toString(),
+    unrealizedPnl: totalCost === null ? null : value.minus(totalCost).toString(),
+  }
+}
+
 export interface AddLotInput {
   readonly ticker: string
   readonly name?: string | null
@@ -91,28 +108,32 @@ export class ManualService {
 
     const toId = await this.ensureTargetInstrument(input.toTicker, from)
     let createdLots = 0
-    await this.db.transaction(async (tx) => {
+    // The transaction body is synchronous: better-sqlite3 runs in-process, so a statement is a
+    // function call rather than a round trip, and it refuses an async callback for that reason.
+    this.db.transaction((tx) => {
       let left = want
       for (const part of openParts) {
         if (left.lte(0)) break
         const take = Decimal.min(part.remainingQuantity, left)
         left = left.minus(take)
         const original = lotRowById.get(part.lotId)!
-        await tx
-          .update(lots)
-          .set({ quantity: sql`${lots.quantity} - ${take.toString()}::numeric` })
+        tx.update(lots)
+          .set({ quantity: new Decimal(original.quantity).minus(take).toString() })
           .where(eq(lots.id, part.lotId))
-        await tx.insert(lots).values({
-          accountId: original.accountId,
-          instrumentId: toId,
-          quantity: take.toString(),
-          pricePerShare: original.pricePerShare,
-          currency: original.currency,
-          acquiredAt: original.acquiredAt,
-          reference: `transfer-${randomUUID()}`,
-          source: 'manual',
-          raw: { transferredFromLot: part.lotId, transferredFromTicker: input.fromTicker },
-        })
+          .run()
+        tx.insert(lots)
+          .values({
+            accountId: original.accountId,
+            instrumentId: toId,
+            quantity: take.toString(),
+            pricePerShare: original.pricePerShare,
+            currency: original.currency,
+            acquiredAt: original.acquiredAt,
+            reference: `transfer-${randomUUID()}`,
+            source: 'manual',
+            raw: { transferredFromLot: part.lotId, transferredFromTicker: input.fromTicker },
+          })
+          .run()
         createdLots += 1
       }
       // Emptied lots are NOT deleted: a full re-sync would restore a deleted sync lot at full size
@@ -139,17 +160,16 @@ export class ManualService {
   async setPrice(instrumentId: number, currentPrice: string): Promise<void> {
     const [account] = await this.db.select({ id: accounts.id }).from(accounts).where(eq(accounts.broker, 'F24'))
     if (!account) throw new AppError(`Manual position for instrument ${instrumentId} not found`, 'POSITION_NOT_FOUND')
-    const [updated] = await this.db
-      .update(positions)
-      .set({
-        currentPrice,
-        currentValue: sql`${positions.quantity} * ${currentPrice}::numeric`,
-        unrealizedPnl: sql`${positions.quantity} * ${currentPrice}::numeric - ${positions.totalCost}`,
-        syncedAt: new Date(),
-      })
+    const [position] = await this.db
+      .select()
+      .from(positions)
       .where(and(eq(positions.accountId, account.id), eq(positions.instrumentId, instrumentId)))
-      .returning({ id: positions.id })
-    if (!updated) throw new AppError(`Manual position for instrument ${instrumentId} not found`, 'POSITION_NOT_FOUND')
+    if (!position) throw new AppError(`Manual position for instrument ${instrumentId} not found`, 'POSITION_NOT_FOUND')
+
+    await this.db
+      .update(positions)
+      .set({ currentPrice, ...valuation(position.quantity, currentPrice, position.totalCost), syncedAt: new Date() })
+      .where(eq(positions.id, position.id))
   }
 
   // The ISIN prefix is a default, not a verdict: an ADR or an ETF is registered somewhere other
@@ -215,55 +235,42 @@ export class ManualService {
     return account!.id
   }
 
-  // A position is the aggregate of its lots (sum of quantity, weighted average price) computed in
-  // SQL numeric - no JavaScript floats anywhere near money.
+  // A position is the aggregate of its lots: total quantity and the weighted average price. The
+  // arithmetic is decimal.js, never SQL - SQLite has no exact decimal and money must not meet a float.
   private async recomputePosition(accountId: number, instrumentId: number): Promise<void> {
-    const [agg] = await this.db
-      .select({
-        quantity: sql<string | null>`sum(${lots.quantity})`,
-        totalCost: sql<string | null>`sum(${lots.quantity} * ${lots.pricePerShare})`,
-        averagePrice: sql<
-          string | null
-        >`sum(${lots.quantity} * ${lots.pricePerShare}) / nullif(sum(${lots.quantity}), 0)`,
-        currency: sql<string | null>`min(${lots.currency})`,
-      })
+    const rows = await this.db
+      .select()
       .from(lots)
       .where(and(eq(lots.accountId, accountId), eq(lots.instrumentId, instrumentId)))
 
-    if (!agg?.quantity || Number(agg.quantity) === 0) {
+    const quantity = rows.reduce((sum, lot) => sum.plus(lot.quantity), new Decimal(0))
+    if (quantity.isZero()) {
       await this.db
         .delete(positions)
         .where(and(eq(positions.accountId, accountId), eq(positions.instrumentId, instrumentId)))
       return
     }
 
+    const totalCost = rows.reduce((sum, lot) => sum.plus(new Decimal(lot.quantity).times(lot.pricePerShare)), zero())
+    const [existing] = await this.db
+      .select({ currentPrice: positions.currentPrice })
+      .from(positions)
+      .where(and(eq(positions.accountId, accountId), eq(positions.instrumentId, instrumentId)))
+
     const row = {
-      quantity: agg.quantity,
-      averagePrice: agg.averagePrice ?? '0',
-      totalCost: agg.totalCost,
-      valueCurrency: agg.currency,
+      quantity: quantity.toString(),
+      averagePrice: totalCost.div(quantity).toString(),
+      totalCost: totalCost.toString(),
+      // Lots of one instrument share a currency, so the first one speaks for the aggregate.
+      valueCurrency: rows[0]!.currency,
       source: 'manual' as const,
       syncedAt: new Date(),
+      ...valuation(quantity.toString(), existing?.currentPrice ?? null, totalCost.toString()),
     }
 
     await this.db
       .insert(positions)
       .values({ accountId, instrumentId, ...row })
       .onConflictDoUpdate({ target: [positions.accountId, positions.instrumentId], set: row })
-
-    // Derive the value from a price entered earlier, again in SQL numeric rather than JS floats.
-    await this.db
-      .update(positions)
-      .set({
-        currentValue: sql`${positions.quantity} * ${positions.currentPrice}`,
-        unrealizedPnl: sql`${positions.quantity} * ${positions.currentPrice} - ${positions.totalCost}`,
-      })
-      .where(
-        and(
-          eq(positions.accountId, accountId),
-          eq(positions.instrumentId, instrumentId),
-          sql`${positions.currentPrice} is not null`,
-        ),
-      )
   }
 }

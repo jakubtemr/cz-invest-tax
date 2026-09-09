@@ -1,248 +1,151 @@
 # The Czech tax module
 
-What this app computes, which reading of the law it takes where the law leaves room, and what it
-deliberately does not do. Section references are to Act No. 586/1992 Coll., on income taxes (ZDP),
-unless stated otherwise.
+What the app computes, which reading it takes where the law leaves room, and what it leaves to you.
+Section references are to Act No. 586/1992 Coll., on income taxes (ZDP).
 
-**This is not tax advice.** It is a working sheet: the numbers are meant to be checked, and the
-gaps below are the ones you have to close yourself.
-
----
-
-## The shape of the computation
+**Not tax advice.** The numbers are meant to be checked. The gaps at the bottom are the real content.
 
 ```
-sales     → FIFO matching per instrument → per-lot time test → s. 10 partial base
-dividends → gross in CZK, withholding per source state       → s. 8 partial base
-interest  → gross in CZK                                     → s. 8 partial base
-                                                              ↓
-                    base rounded down to whole hundreds (s. 16)
-                                                              ↓
-                          15 % up to the threshold, 23 % above (s. 16a)
-                                                              ↓
-                     minus the ordinary foreign tax credit, per source state
+sales     → FIFO per instrument → per-lot time test → s. 10 base (loss clamped to zero)
+dividends → gross in CZK, withholding per source state ┐
+interest  → gross in CZK                               ┴→ s. 8 base
+                          ↓
+   base rounded down to whole hundreds (s. 16), then 15 % / 23 % (s. 16a)
+                          ↓
+        minus the ordinary foreign tax credit, computed per source state
 ```
 
 ## Sales
 
-### FIFO, per instrument, not per account
+**FIFO, per instrument, not per account.** The tax is assessed on the taxpayer, so a purchase at one
+broker and a sale at another are the same holding. Rows sharing a timestamp are ordered by id, so the
+result cannot depend on what order the database returns.
 
-A sale consumes the oldest open lots of the same instrument first. Matching is deliberately **per
-instrument and not per account**: the tax is assessed on the taxpayer, so a purchase held at one
-broker and a sale executed at another are still the same holding.
+**Time test (s. 4(1)(x)).** Exempt once the holding period *exceeds* three years — a sale on the
+anniversary itself does not qualify, the first exempt day is the day after. Counted in Prague
+calendar days: a US fill on 31 Dec 23:30 UTC is already 1 January here. 29 February with no
+counterpart collapses to 28 February (Civil Code s. 605).
 
-Lots and sales sharing a timestamp are ordered by database id, so the result cannot depend on the
-order Postgres happens to return rows in.
+**The 100 000 CZK exemption (s. 4(1)(w)).** Under the limit, all sale income for the year is exempt.
 
-### The three-year time test (s. 4(1)(x))
+> **Interpretation:** income already exempt under the time test does *not* consume the limit. A sale
+> qualifies under (w) or under (x), never both, so what (x) has exempted never reaches (w). The
+> screen shows total proceeds *and* the amount measured against the limit, so the conservative
+> reading stays one glance away.
 
-Exempt once the period between acquisition and sale **exceeds** three years, so a sale on the third
-anniversary itself does **not** qualify — the first exempt day is the day after. The period is
-counted in calendar days in the Europe/Prague zone, because a US after-hours fill on 31 December
-23:30 UTC is already 1 January in Prague: a different year, a different exchange rate, and possibly
-a different side of the anniversary.
+An **unmatched quantity** — shares sold with no purchase behind them in the imported history — always
+consumes the limit: its exemption cannot be demonstrated. Taxed with a zero cost basis and reported
+as an error, not a note.
 
-29 February with no counterpart in the target year collapses to 28 February (Civil Code s. 605).
+**The 40 000 000 CZK cap (s. 4(3)) — 2025 only.** The consolidation package capped time-test-exempt
+income from 1 January 2025; the 2026 amendment took securities and business shares back out and left
+the cap for crypto-assets, which this app does not track. Where it applies the app reports the
+overflow but does not pick which sales to tax — that is your choice, and the cap also counts exempt
+income the app never sees.
 
-### The 100 000 CZK exemption (s. 4(1)(w))
+**Expenses (s. 10(5)).** Cost is the purchase price plus fees incurred on acquisition and on sale.
+Broker fees arrive per fill and are allocated *pro rata*: half a lot sold carries half its fee. Fees
+reduce the gain, not the *income*, so the 100k limit measures gross proceeds.
 
-If total sale income for the year stays at or below the limit, the whole lot of it is exempt.
-
-**Interpretation taken:** income already exempt under the time test does **not** consume the limit.
-The two exemptions cannot be combined for one and the same security — a sale qualifies under s.
-4(1)(w) or under s. 4(1)(x), not both — so income that the time test has already exempted never
-reaches the limit. The screen shows both figures, total proceeds and the amount measured against the
-limit, so the more conservative reading (counting everything) remains one glance away.
-
-An **unmatched quantity** — shares sold with no purchase behind them in the imported history —
-always consumes the limit: its exemption cannot be demonstrated, so it is treated as taxable income
-with a zero cost basis, and it is reported as an error, not a note.
-
-### The 40 000 000 CZK cap on exempt income (s. 4(3))
-
-**In force for 2025 alone.** The 2024 consolidation package capped income exempt under the time
-test from 1 January 2025; the amendment effective for 2026 took securities and business shares back
-out of the cap and left it applying only to crypto-assets, which this app does not track. So the
-figure is non-zero for 2025 and zero in every other year.
-
-Where it does apply, income exempt under the time test above the cap becomes taxable. The app
-**reports the overflow** but does not decide which sales to tax — that choice is the taxpayer's, and
-the cap counts exempt income the app never sees (a stake in a company, real estate).
-
-### Expenses (s. 10(5))
-
-The cost is the acquisition price plus the fees demonstrably incurred on the acquisition and on the
-sale. Broker fees arrive per fill (`walletImpact.taxes` in the Trading 212 API: currency conversion
-fee, stamp duty reserve tax, financial transaction tax) and are allocated **pro rata** to the
-matched quantity — half a lot sold carries half the lot's purchase fee.
-
-Fees reduce the gain, they do not reduce **income**. The 100 000 CZK limit therefore measures gross
-proceeds.
-
-*Gap:* if one fill carries fees in more than one currency, they are dropped rather than added up,
-because the mapping layer has no exchange rate. No such fill has been observed; the raw payload is
-kept in the database either way.
-
-### The loss clamp (s. 10(4))
-
-Within the partial base, losses and gains on sales offset each other. If expenses exceed income for
-the year as a whole, the excess is disregarded: the partial base is zero, never negative. The app
-reports both — `gainCzk` (which may be negative, informational) and `baseCzk` (clamped).
+**Loss clamp (s. 10(4)).** Gains and losses offset within the year; if expenses exceed income the
+excess is disregarded. The app reports `gainCzk` (may be negative) and `baseCzk` (never).
 
 ## Dividends and interest
 
-### Gross, not net
+**Gross, not net.** The s. 8 base is the gross dividend, reconstructed as gross-per-share × quantity
+at the CNB rate, while the net is converted in the currency it was actually paid in. With no gross
+reported the app falls back to net, calls withholding zero and says so — that understates the base;
+it is a flagged data gap, not a choice.
 
-The s. 8 base is the **gross** dividend, before foreign withholding. Trading 212 reports a net
-payout plus a gross amount per share; the gross is reconstructed as `gross per share × quantity`,
-converted at the rate for the payment day in the currency of the instrument, while the net is
-converted in the currency it was actually paid in.
+**Source state** comes from the ISIN prefix, which is a good default and a bad certainty: an ADR on a
+European company carries a US ISIN, an Irish-domiciled ETF an IE one whatever it holds, and `XS` is a
+depository rather than a country. So it is **overridable per instrument** on the Dividends tab.
 
-When the gross amount is missing, the app falls back to the net amount, reports withholding as zero
-and says so. That understates the base — it is a data gap, flagged, not a silent choice.
+**Withholding is inferred, never reported.** No broker payload carries it: it is the reconstructed
+gross minus the net the broker credited at its own rate on its own day, rounded to whole hellers. Two
+exchange-rate bases, so the implied rate jitters — the more so the smaller the payment.
 
-Broker FX rounding can make the converted net come out a hair above the gross. Withholding is
-clamped at zero, silently within a tolerance of 1 CZK or 1 % of the gross and with a loud warning
-above it.
+Therefore the treaty cap *always* applies (a cap can only understate a credit), while the *warning*
+is judged in **percentage points**, never in crowns: on fractional holdings no single withholding
+reaches a crown, so an amount-based tolerance would hide a 25 % Canadian rate as readily as a
+rounding error. One percentage point, widened on small payments by what a heller of rounding is
+worth. This catches relief not applied at source — Canada withholding its domestic 25 % against a
+treaty 15 %, the Netherlands 15 % against 10 %, a US payer taking 30 % for a missing W-8BEN. It
+cannot catch a mislabelled ADR; that is what the country override is for.
 
-### Source state
+The treaty table is in `src/server/tax/constants.ts`, each row citing its promulgation in the
+Collection of Laws, cross-checked against the overview KODAP publishes. Taiwan is there too, granted
+by a domestic act (45/2020 Coll.) since Czechia does not recognise it as a state. **Verify before
+filing** — treaties get amended, and the table covers what a European retail portfolio usually
+touches, not everything. Note the UK at 15 %: ordinary UK dividends carry no withholding at all, but
+a REIT's property income distribution is withheld at 20 %, and that is when the cap bites.
 
-The credit needs to know where the income came from. The source state is derived from the **first
-two characters of the ISIN**, which is a good default and a bad certainty:
-
-- an ADR on a European company carries a US ISIN;
-- an Irish-domiciled UCITS ETF distributes under an IE ISIN whatever it holds;
-- `XS` and other X-prefixes are supranational depositories, not countries.
-
-So the derived country is a starting point and is **overridable per instrument**. Where it is
-unknown, the credit is not capped and the app says the cap is missing.
-
-### Treaty rates and excess withholding
-
-Each dividend gets an effective rate of `withheld / gross`. When it exceeds the rate the double
-taxation treaty allows, the excess is **not creditable in Czechia** — it is refundable from the
-source state. A 30 % US withholding almost always means a missing W-8BEN.
-
-**The withholding is inferred, not reported.** No broker payload carries the tax withheld: it is
-the reconstructed gross minus the net the broker credited in the account currency, at its own rate
-on its own day, rounded to whole hellers. Two exchange-rate bases and a rounding, so the implied
-rate jitters around the real one — the more so the smaller the payment.
-
-The cap therefore always applies (a treaty limit can only understate a credit, never overstate it),
-while the *warning* is judged in **percentage points**, never as an amount. On a portfolio of
-fractional shares no single withholding reaches a crown, so an amount-based tolerance would hide a
-25 % Canadian rate exactly as readily as a rounding error. The threshold is one percentage point,
-widened on small payments by what one heller of rounding is worth: on a 0.11 CZK dividend a single
-heller moves the implied rate by nine points, and nothing can be concluded from it.
-
-What this catches in practice: relief at source not applied. Canada withholding its domestic 25 %
-against a treaty 15 %, the Netherlands 15 % against 10 %, or a US payer taking 30 % for a missing
-W-8BEN. What it cannot catch is an ADR: a Taiwanese company on a US ISIN passes through Taiwanese
-withholding while the derived source state says US — which is why the state is overridable.
-
-The treaty table lives in `src/server/tax/constants.ts`, each row citing the promulgation in the
-Collection of Laws and cross-checked against the treaty overview KODAP publishes. Taiwan is in there
-too, granted by a domestic act (45/2020 Coll.) rather than a treaty, because Czechia does not
-recognise it as a state. **Verify the rate before filing:** treaties get amended, and the table
-covers the countries a European retail portfolio usually touches, not all of them.
-
-Note the United Kingdom. Ordinary UK dividends carry no withholding at all, so the 15 % cap looks
-irrelevant — until a REIT distributes property income, which the UK withholds at 20 %. That is the
-one case where the cap bites, and it is why the entry is 15 % rather than zero.
-
-### Czech-source dividends
-
-A dividend from a Czech source is taxed by final withholding as a separate tax base (s. 36). It
-belongs neither in the s. 8 base nor in the credit and is not reported in the return at all. The app
-keeps it in the dividend list, excludes it from the base and the credit, and flags it.
+**Czech-source dividends** are taxed by final withholding as a separate base (s. 36) — not in s. 8,
+not in the credit, not in the return. Flagged and excluded.
 
 ## Tax and the credit
 
-### Rates and rounding
+The base is rounded **down to whole hundreds** (s. 16), then 15 % up to 36× the average wage and 23 %
+above (s. 16a); the tax is rounded up to whole crowns.
 
-The base is rounded **down to whole hundreds of crowns** (s. 16), then 15 % applies up to
-36× the average wage and 23 % above it (s. 16a). The resulting tax is rounded up to whole crowns.
+> s. 16 rounds the base *as a whole*. Rounding s. 8 and s. 10 separately and adding them would shave
+> up to 198 CZK off and understate the tax, so the app rounds the sum and reports the partial bases
+> unrounded beside it.
 
-**Deviation from the original plan, stated explicitly:** s. 16 rounds the tax base as a whole, not
-each partial base separately. Rounding s. 8 and s. 10 independently and then adding them would shave
-up to 198 CZK off the base and understate the tax, so the app rounds the sum. The unrounded partial
-bases are reported next to it.
+The 23 % threshold is shared across **all** sections, and the app only sees investments — hence the
+**"other partial tax bases"** input, defaulting to zero. At zero the result is exact for someone
+whose only income is investments, and honest for everyone else, because the number is visibly an
+input.
 
-### Other partial tax bases
-
-The 23 % threshold is shared across **all** sections — employment, business, rent, and investments
-together. The app can only see investments, so the tax screen takes an **"other partial tax bases"**
-input defaulting to zero. With zero, the result is exact for someone whose only income is
-investments; for everyone else it is honest, because the number is visibly an input.
-
-### The ordinary credit (zápočet prostý, s. 38f(2))
-
-Foreign withholding is credited only up to the Czech tax attributable to income from **that state**:
+**Ordinary credit (s. 38f(2))**, per source state:
 
 ```
 credit(state) = min( creditable withholding(state),
                      Czech tax × gross income from state / total base )
 ```
 
-Computed state by state, so a generous treaty in one country cannot subsidise tax on income from
-another. The uncredited remainder is reported: s. 24(2)(ch) allows claiming it as an expense in the
-following year, and **this app carries nothing forward**.
+State by state, so a generous treaty in one country cannot subsidise tax on income from another. The
+uncredited remainder is reported; s. 24(2)(ch) allows claiming it as an expense next year and **the
+app carries nothing forward**. An unused credit is not a refund — tax owed stops at zero.
 
-An unused credit is not a refund — tax owed stops at zero.
-
-### Per-year constants
-
-Every rate, limit and threshold is keyed by year in `src/server/tax/constants.ts`. An unsupported
-year **throws** `TAX_YEAR_UNSUPPORTED` instead of quietly reusing last year's numbers: a wrong figure
-the user believes is worse than a message saying the year is not covered yet.
+Every rate, limit and threshold is keyed by year, currently 2021–2026, because the 23 % threshold is
+announced annually and the tax cannot be computed without it. An unsupported year **throws** rather
+than reusing last year's numbers, and the year picker greys it out. The README says how to add one.
 
 ## Exchange rates
 
-Daily CNB rates, cached in the database, keyed by the **requested** date — over a weekend or a
-holiday the CNB returns the last business day's table, which is exactly the rate the conversion has
-to use. GBX (pence, how Trading 212 quotes LSE listings) is GBP ÷ 100; the CNB does not quote it.
+Daily CNB rates cached in the database, keyed by the **requested** date — over a weekend CNB returns
+the last business day's table, which is the rate the conversion has to use. GBX is GBP ÷ 100.
 
-Two failure modes are kept apart, because they mean different things:
-
-- **the currency is not quoted at all** — a permanent gap; items in that currency drop out;
-- **the rate table for a day could not be read** — an outage; items from that day drop out.
-
-Either way the base is **incomplete**, and the screen says so rather than showing a smaller number
-as if it were the answer. Every leg of an item must be priced — the sale currency, the lot currency
-and the fee currency — otherwise the whole item is left out; pricing only the sale would let an
-unpriced lot into the arithmetic.
+Two failures are kept apart because they mean different things: a currency CNB does not quote (a
+permanent gap) and a day whose table could not be read (an outage). Either way the base is
+**incomplete** and the screen says so. Every leg of an item must be priced — sale, lot and fee
+currency — or the whole item drops out; pricing only the sale would let an unpriced lot into the
+arithmetic.
 
 ## Splits and corporate actions
 
-A split is not a trade, so it never arrives in the order history: the broker simply reports more
-shares than the transactions add up to. When the broker quantity differs from the history, the open
-lots are rescaled by the factor with the **acquisition date preserved** — the holding period
-survives a split, so the three-year clock keeps running. A factor resolving to a clean n:m is named
-in the message ("a 1:2 split"); anything else is reported as an adjustment.
+A split is not a trade, so it never appears in the order history — the broker simply reports more
+shares than the transactions add up to. Open lots are rescaled by the factor with the **acquisition
+date preserved**, so the three-year clock keeps running; a clean n:m factor is named in the message.
+Reconciliation is per (account, instrument), because an instrument-level total would hide drift on
+one account behind a matching total on another. It touches open lots only — past sales are not
+retroactively rescaled. A ticker change or spin-off is handled by the transfer tool on the Taxes
+screen, which moves the unmatched remainder keeping date and price.
 
-Reconciliation is per **(account, instrument)** — an instrument-level total would hide drift on one
-account behind a matching total on another. It applies to open lots only: past sales are not
-retroactively rescaled.
+## What it does not do
 
-A ticker change or a spin-off is handled by the **transfer tool** on the Taxes screen, which moves
-the unmatched purchase remainder onto the new ticker keeping the acquisition date and price.
-
-## What this app does NOT do
-
-| Not implemented | Why |
+| Not computed | Why |
 | --- | --- |
-| The uniform annual exchange rate (jednotný kurz) | Published after year end, with no API. Daily CNB rates only. |
-| Weighted-average cost basis | The per-lot time test requires per-lot identity, so FIFO it is. |
-| Mergers, demergers, share exchanges | Only the manual transfer tool, which handles a ticker change and a simple spin-off. |
-| Generating the DPFO XML | The output is figures to transcribe, plus a CSV export. |
-| Loss carry-forward | s. 10 losses do not carry across years anyway; the uncredited foreign tax that s. 24 would let you claim next year is reported but not carried. |
-| Securities held in a business asset base | s. 10 only — an individual's non-business holdings. |
-| Derivatives, crypto, bonds held to maturity, currency gains on cash | Only equity-style instruments the brokers report as positions. |
-| Section 36 filings for Czech-source income | Flagged and excluded, not computed. |
-| Verifying the limits across your whole life | The app only sees trades in its own database. The 100 000 CZK and 40 000 000 CZK limits are per-taxpayer figures covering income it cannot see — a flat sold, a stake in a company, another broker. |
+| The uniform annual exchange rate | Published after year end, no API. Daily CNB only. |
+| Weighted-average cost basis | The per-lot time test needs per-lot identity. |
+| Mergers, demergers, share exchanges | Only the manual transfer tool (ticker change, simple spin-off). |
+| The DPFO XML | Figures to transcribe, plus a CSV export. |
+| Loss carry-forward | s. 10 losses do not carry anyway; the s. 24 residual is reported, not carried. |
+| Securities in a business asset base | s. 10 only — an individual's non-business holdings. |
+| Derivatives, crypto, bonds, FX gains on cash | Only what the brokers report as equity positions. |
+| Fees charged in a currency other than the fill's | The mapper has no FX rate; the raw payload is kept. |
+| Verifying the limits across your whole life | The app sees only its own database. The 100k and 40M limits are per-taxpayer figures covering income it cannot see. |
 
-## Test coverage
-
-`src/server/tax/**` and `src/shared/**` are held at **100 % of lines, branches, statements and
-functions** by `pnpm test:tax-coverage`, which runs as part of `pnpm verify`. Integration tests run
-against a real Postgres database, never a mock.
+`src/server/tax/**` and `src/shared/**` are held at 100 % of lines, branches, statements and functions
+by `pnpm verify`. Integration tests run against a real database, never a mock.
