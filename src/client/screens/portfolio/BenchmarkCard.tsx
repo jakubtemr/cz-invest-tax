@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, errorText } from '../../api.js'
 import { useFormat } from '../../format.js'
-import { useLang } from '../../i18n/index.js'
+import { type Translate, useLang } from '../../i18n/index.js'
 import { Card, type Tone } from '../../ui.js'
 
 type Summary = Awaited<ReturnType<typeof api.benchmark.summary>>
@@ -14,6 +14,14 @@ function tone(value: string): Tone {
 
 function signed(text: string, value: string): string {
   return Number(value) > 0 ? `+${text}` : text
+}
+
+function verdictText(differencePct: string | null, t: Translate): string {
+  if (differencePct === null) return t('benchmark.even')
+  const difference = Number(differencePct)
+  if (difference > 0) return t('benchmark.ahead', { pct: differencePct })
+  if (difference < 0) return t('benchmark.behind', { pct: differencePct.slice(1) })
+  return t('benchmark.even')
 }
 
 // The level to beat: what the same deposits, made into the index on the same days, would be worth.
@@ -61,13 +69,7 @@ export function BenchmarkCard() {
     )
   }
 
-  const difference = Number(summary.differencePct)
-  const verdict =
-    difference > 0
-      ? t('benchmark.ahead', { pct: summary.differencePct })
-      : difference < 0
-        ? t('benchmark.behind', { pct: summary.differencePct.slice(1) })
-        : t('benchmark.even')
+  const verdict = verdictText(summary.differencePct, t)
 
   return (
     <Card

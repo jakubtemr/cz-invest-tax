@@ -3,6 +3,7 @@ import { asc, desc, gte, inArray, sql } from 'drizzle-orm'
 import { pragueDay } from '../../shared/dates.js'
 import type { Db } from '../db/client.js'
 import { accounts, benchmarkPrices, cashTransactions, positions, snapshots } from '../db/schema.js'
+import { AppError } from '../errors.js'
 import type { CnbFxClient } from '../fx/cnb-client.js'
 import { loadRates, type RateLookup, RateRequests } from '../tax/fx-lookup.js'
 import { type BenchmarkComparison, compareToBenchmark, type ExternalFlow } from './compare.js'
@@ -33,6 +34,14 @@ function daysBefore(day: string, days: number): string {
 
 const noon = (day: string) => new Date(`${day}T12:00:00Z`)
 
+// A currency CNB does not quote cannot be silently multiplied into NaN - the comparison is wrong
+// as a whole, so it fails as a whole.
+function crownsPer(rate: RateLookup, date: Date, currency: string): Decimal {
+  const value = rate(date, currency)
+  if (value === null) throw new AppError(`No CNB rate for ${currency} on ${pragueDay(date)}`, 'BENCHMARK_FX_MISSING')
+  return value
+}
+
 export class BenchmarkService {
   // The valuation day this process last fetched through: a snapshot taken on a weekend sits
   // after the last close, and without this every overview would go out again.
@@ -60,11 +69,11 @@ export class BenchmarkService {
     const flows = flowRows.map(
       (row): ExternalFlow => ({
         day: pragueDay(row.occurredAt),
-        amountCzk: new Decimal(row.amount).times(rate(row.occurredAt, row.currency) ?? Number.NaN),
+        amountCzk: new Decimal(row.amount).times(crownsPer(rate, row.occurredAt, row.currency)),
       }),
     )
     const portfolioValueCzk = valuation.amounts.reduce(
-      (sum, item) => sum.plus(item.amount.times(rate(noon(valuation.asOf), item.currency) ?? Number.NaN)),
+      (sum, item) => sum.plus(item.amount.times(crownsPer(rate, noon(valuation.asOf), item.currency))),
       new Decimal(0),
     )
 

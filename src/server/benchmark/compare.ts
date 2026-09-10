@@ -26,7 +26,8 @@ export interface BenchmarkComparison {
   readonly portfolioValueCzk: string
   readonly benchmarkValueCzk: string
   readonly differenceCzk: string
-  readonly differencePct: string
+  // Null when the level is zero - everything withdrawn - and a ratio has no meaning.
+  readonly differencePct: string | null
   readonly portfolioGainCzk: string
   readonly benchmarkGainCzk: string
   readonly portfolioXirrPct: string
@@ -80,7 +81,7 @@ export function compareToBenchmark(input: BenchmarkInput): BenchmarkComparison {
     portfolioValueCzk: money(input.portfolioValueCzk),
     benchmarkValueCzk: money(benchmarkValue),
     differenceCzk: money(input.portfolioValueCzk.minus(benchmarkValue)),
-    differencePct: percent(input.portfolioValueCzk.div(benchmarkValue).minus(1)),
+    differencePct: benchmarkValue.isZero() ? null : percent(input.portfolioValueCzk.div(benchmarkValue).minus(1)),
     portfolioGainCzk: money(input.portfolioValueCzk.minus(netInvested)),
     benchmarkGainCzk: money(benchmarkValue.minus(netInvested)),
     portfolioXirrPct: percent(portfolioXirr),

@@ -65,6 +65,23 @@ describe('compareToBenchmark', () => {
     )
   })
 
+  it('has no percentage when everything was withdrawn and the level is zero', () => {
+    const result = compareToBenchmark(
+      input({
+        flows: [
+          { day: '2023-01-02', amountCzk: new Decimal(1000) },
+          { day: '2023-07-03', amountCzk: new Decimal(-1000) },
+        ],
+        portfolioValueCzk: new Decimal(50),
+        closeOn: () => new Decimal(100),
+        usdRate: () => new Decimal(1),
+      }),
+    )
+    expect(result.benchmarkValueCzk).toBe('0.00')
+    expect(result.differenceCzk).toBe('50.00')
+    expect(result.differencePct).toBeNull()
+  })
+
   it('refuses an empty flow list', () => {
     expect(() => compareToBenchmark(input({ flows: [] }))).toThrow(AppError)
   })

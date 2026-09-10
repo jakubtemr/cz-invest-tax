@@ -126,6 +126,27 @@ describe('BenchmarkService', () => {
     expect(summary).toMatchObject({ status: 'ready', benchmarkValueCzk: '1200.00' })
   })
 
+  it('fails loudly on a deposit in a currency CNB does not quote', async () => {
+    const accountId = await seedAccount()
+    await db.insert(cashTransactions).values({
+      accountId,
+      amount: '10',
+      currency: 'XYZ',
+      type: 'DEPOSIT',
+      occurredAt: at('2023-01-03'),
+      reference: 'd1',
+    })
+    await db.insert(snapshots).values({ accountId, currency: 'CZK', totalValue: '1000', takenAt: at('2024-01-02') })
+    await seedFx('2023-01-03', '1')
+    await seedFx('2024-01-02', '1')
+    const { source } = fakeSource()
+
+    await expect(new BenchmarkService(db, source, new CnbFxClient(db, vi.fn())).summary()).rejects.toMatchObject({
+      code: 'BENCHMARK_FX_MISSING',
+      message: expect.stringContaining('XYZ'),
+    })
+  })
+
   it('values a manual account from its positions when it has no snapshot', async () => {
     const t212 = await seedAccount()
     const [f24] = await db.insert(accounts).values({ broker: 'F24', currency: 'EUR' }).returning({ id: accounts.id })
