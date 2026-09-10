@@ -14,7 +14,8 @@ function makeRouter(overrides: { addLot?: ManualService['addLot']; removeLot?: M
   } as unknown as ManualService
   const portfolio = { overview: vi.fn() } as unknown as PortfolioService
   const tax = { overview: vi.fn() } as unknown as import('./tax/tax-service.js').TaxService
-  return createRouter({ portfolio, manual, sync: null, tax })
+  const benchmark = { summary: vi.fn() } as unknown as import('./benchmark/benchmark-service.js').BenchmarkService
+  return createRouter({ portfolio, benchmark, manual, sync: null, tax })
 }
 
 const validLot = {

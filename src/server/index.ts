@@ -1,6 +1,8 @@
 import { serve } from '@hono/node-server'
 import { RPCHandler } from '@orpc/server/fetch'
 import { Hono } from 'hono'
+import { BenchmarkService } from './benchmark/benchmark-service.js'
+import { YahooChartClient } from './benchmark/yahoo-client.js'
 import { createDb } from './db/client.js'
 import { loadEnv } from './env.js'
 import { CnbFxClient } from './fx/cnb-client.js'
@@ -22,11 +24,13 @@ const syncRunner = t212Configured
     )
   : null
 
+const fx = new CnbFxClient(db)
 const router = createRouter({
   portfolio: new PortfolioService(db),
+  benchmark: new BenchmarkService(db, new YahooChartClient(), fx),
   manual: new ManualService(db),
   sync: syncRunner,
-  tax: new TaxService(db, new CnbFxClient(db)),
+  tax: new TaxService(db, fx),
 })
 
 const rpcHandler = new RPCHandler(router)

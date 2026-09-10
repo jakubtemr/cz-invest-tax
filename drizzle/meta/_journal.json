@@ -8,6 +8,13 @@
       "when": 1788960449277,
       "tag": "0000_steady_bromley",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789039359965,
+      "tag": "0001_chemical_alex_power",
+      "breakpoints": true
     }
   ]
 }

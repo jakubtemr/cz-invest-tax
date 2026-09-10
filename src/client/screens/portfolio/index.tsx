@@ -3,6 +3,7 @@ import { api, errorText, type Overview } from '../../api.js'
 import { useLang } from '../../i18n/index.js'
 import { EmptyState, Section, Skeleton } from '../../ui.js'
 import { AccountCard } from './AccountCard.js'
+import { BenchmarkCard } from './BenchmarkCard.js'
 import { ManualSection } from './ManualSection.js'
 import { PositionsTable } from './PositionsTable.js'
 
@@ -88,11 +89,14 @@ export function Portfolio() {
   if (!overview) return <Skeleton rows={5} />
 
   const busy = syncState.kind === 'running' || syncState.kind === 'starting'
+  // Remounting on the newest snapshot is what refetches the comparison after a sync lands.
+  const valuationKey = overview.accounts.map((account) => account.snapshot?.takenAt ?? '').join('|')
 
   return (
     <>
       {overview.accounts.length > 0 && (
         <div className="account-cards">
+          <BenchmarkCard key={valuationKey} />
           {overview.accounts.map((account) => (
             <AccountCard key={account.id} account={account} />
           ))}

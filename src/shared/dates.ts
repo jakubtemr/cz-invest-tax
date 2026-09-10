@@ -2,6 +2,8 @@
 // A US after-hours fill on 31 Dec 23:30 UTC is already 1 Jan in Prague - a different year and
 // a different CNB rate. Shared by the server (tax math) and the client (countdowns).
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 const PRAGUE_DAY_FORMAT = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Europe/Prague',
   year: 'numeric',
@@ -43,5 +45,12 @@ export function nextDay(day: string): string {
 export function daysFromToday(day: string, today: Date = new Date()): number {
   const target = new Date(`${day}T00:00:00Z`).getTime()
   const start = new Date(`${pragueDay(today)}T00:00:00Z`).getTime()
-  return Math.round((target - start) / (24 * 60 * 60 * 1000))
+  return Math.round((target - start) / MS_PER_DAY)
+}
+
+// Whole days between two ISO days, positive when `to` is later.
+export function daysBetween(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00Z`).getTime()
+  const b = new Date(`${to}T00:00:00Z`).getTime()
+  return Math.round((b - a) / MS_PER_DAY)
 }

@@ -159,3 +159,11 @@ export const fxRates = sqliteTable(
   },
   (t) => [uniqueIndex('fx_rates_date_currency_idx').on(t.date, t.currency)],
 )
+
+// Daily closes of the S&P 500 total-return index, keyed by the New York trading day. The shadow
+// portfolio replays every deposit into the index at that day's close, so the whole history back
+// to the first deposit has to be here.
+export const benchmarkPrices = sqliteTable('benchmark_prices', {
+  date: text('date').primaryKey(),
+  close: money('close').notNull(),
+})
