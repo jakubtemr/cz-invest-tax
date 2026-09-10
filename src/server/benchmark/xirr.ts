@@ -45,8 +45,10 @@ function earliest(flows: readonly DatedFlow[]): string {
 // modest guess, and whenever a step leaves the bracket or stalls, bisection takes over - the
 // combination converges for every sign-changing series a portfolio can produce.
 export function xirr(flows: readonly DatedFlow[]): Decimal {
-  const hasOutflow = flows.some((flow) => flow.amount.isNegative())
-  const hasInflow = flows.some((flow) => flow.amount.isPositive())
+  // Strict comparisons: decimal.js gives zero a sign, so isPositive() would take a worthless
+  // final value for an inflow and send Newton after a root that is not there.
+  const hasOutflow = flows.some((flow) => flow.amount.lt(0))
+  const hasInflow = flows.some((flow) => flow.amount.gt(0))
   if (!hasOutflow || !hasInflow) {
     throw new AppError('XIRR needs at least one outflow and one inflow', 'XIRR_INVALID_FLOWS')
   }
@@ -54,12 +56,14 @@ export function xirr(flows: readonly DatedFlow[]): Decimal {
   let low = RATE_FLOOR
   let high = RATE_CEILING
   let rate = INITIAL_GUESS
+  // The bracket is narrowed by comparing signs with its lower end rather than by assuming the
+  // NPV falls with the rate: a series that deposits, withdraws and deposits again need not be
+  // monotonic, and the sign test still keeps a root inside the bracket.
+  const lowIsPositive = npv(flows, low).gt(0)
   for (let i = 0; i < MAX_ITERATIONS; i += 1) {
     const value = npv(flows, rate)
     if (value.abs().lt(TOLERANCE)) return rate
-    // NPV falls as the rate rises when the outflows come first, which is the case for a
-    // portfolio: a positive NPV means the true rate is higher.
-    if (value.isPositive()) low = rate
+    if (value.gt(0) === lowIsPositive) low = rate
     else high = rate
 
     const slope = npvDerivative(flows, rate)

@@ -59,6 +59,16 @@ function investorFlows(flows: readonly ExternalFlow[], finalValue: Decimal, asOf
   return [...flows.map((flow) => ({ day: flow.day, amount: flow.amountCzk.neg() })), { day: asOf, amount: finalValue }]
 }
 
+const TOTAL_LOSS = new Decimal(-1)
+
+// A side worth nothing with no withdrawal to show for it lost everything: the NPV only reaches
+// zero as the rate tends to -100 %, which Newton cannot land on, so it is stated outright.
+function annualReturn(flows: readonly ExternalFlow[], finalValue: Decimal, asOf: string): Decimal {
+  const dated = investorFlows(flows, finalValue, asOf)
+  if (finalValue.isZero() && !dated.some((flow) => flow.amount.gt(0))) return TOTAL_LOSS
+  return xirr(dated)
+}
+
 const money = (value: Decimal) => value.toFixed(MONEY_PLACES)
 const percent = (ratio: Decimal) => ratio.times(HUNDRED).toFixed(PERCENT_PLACES)
 
@@ -71,8 +81,8 @@ export function compareToBenchmark(input: BenchmarkInput): BenchmarkComparison {
     .times(required(input.usdRate, input.asOf, 'BENCHMARK_FX_MISSING', 'USD rate'))
   const netInvested = input.flows.reduce((sum, flow) => sum.plus(flow.amountCzk), new Decimal(0))
 
-  const portfolioXirr = xirr(investorFlows(input.flows, input.portfolioValueCzk, input.asOf))
-  const benchmarkXirr = xirr(investorFlows(input.flows, benchmarkValue, input.asOf))
+  const portfolioXirr = annualReturn(input.flows, input.portfolioValueCzk, input.asOf)
+  const benchmarkXirr = annualReturn(input.flows, benchmarkValue, input.asOf)
 
   return {
     since: input.flows.reduce((min, flow) => (flow.day < min ? flow.day : min), input.flows[0]!.day),

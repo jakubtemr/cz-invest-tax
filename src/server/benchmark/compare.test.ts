@@ -82,6 +82,13 @@ describe('compareToBenchmark', () => {
     expect(result.differencePct).toBeNull()
   })
 
+  it('a portfolio worth nothing with no withdrawals is a total loss, not an error', () => {
+    const result = compareToBenchmark(input({ portfolioValueCzk: new Decimal(0) }))
+    expect(result.portfolioXirrPct).toBe('-100.00')
+    expect(result.benchmarkXirrPct).toBe('33.33')
+    expect(result.alphaPp).toBe('-133.33')
+  })
+
   it('refuses an empty flow list', () => {
     expect(() => compareToBenchmark(input({ flows: [] }))).toThrow(AppError)
   })

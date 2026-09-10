@@ -36,6 +36,21 @@ describe('xirr', () => {
     expect(npv(flows, rate).abs().toNumber()).toBeLessThan(1e-9)
   })
 
+  it('converges on a deposit, withdrawal, deposit series that changes sign twice', () => {
+    const flows = [
+      flow('2023-01-01', -1000),
+      flow('2023-04-01', 600),
+      flow('2023-07-01', -800),
+      flow('2024-01-01', 1400),
+    ]
+    const rate = xirr(flows)
+    expect(npv(flows, rate).abs().toNumber()).toBeLessThan(1e-9)
+  })
+
+  it('a zero final value is not an inflow', () => {
+    expect(() => xirr([flow('2023-01-01', -100), flow('2024-01-01', 0)])).toThrow(AppError)
+  })
+
   it('accepts flows in any order', () => {
     const rate = xirr([flow('2024-01-01', 1100), flow('2023-01-01', -1000)])
     expect(rate.toDecimalPlaces(8).toNumber()).toBe(0.1)
