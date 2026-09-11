@@ -1,5 +1,6 @@
 import { ORPCError, os } from '@orpc/server'
 import { z } from 'zod'
+import type { BenchmarkService } from './benchmark/benchmark-service.js'
 import { AppError } from './errors.js'
 import type { ManualService } from './manual/manual-service.js'
 import type { PortfolioService } from './portfolio/portfolio-service.js'
@@ -51,6 +52,7 @@ const taxYearInput = z.object({
 
 export interface RouterDeps {
   portfolio: PortfolioService
+  benchmark: BenchmarkService
   manual: ManualService
   sync: SyncRunner | null
   tax: TaxService
@@ -71,6 +73,9 @@ export function createRouter(deps: RouterDeps) {
   return {
     portfolio: {
       overview: os.handler(() => deps.portfolio.overview().catch(toRpcError)),
+    },
+    benchmark: {
+      summary: os.handler(() => deps.benchmark.summary().catch(toRpcError)),
     },
     sync: {
       // Kicks the sync off in the background and returns immediately - progress is polled.

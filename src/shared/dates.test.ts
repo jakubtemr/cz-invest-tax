@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addYearsToDay, daysFromToday, nextDay, pragueDay, pragueYear } from './dates.js'
+import { addYearsToDay, daysBetween, daysFromToday, nextDay, pragueDay, pragueYear } from './dates.js'
 
 describe('pragueDay / pragueYear', () => {
   it('converts a late-UTC timestamp to the next Prague day', () => {
@@ -37,5 +37,13 @@ describe('daysFromToday', () => {
 
   it('is negative for a day already passed', () => {
     expect(daysFromToday('2026-02-27', new Date('2026-03-01T12:00:00Z'))).toBe(-2)
+  })
+})
+
+describe('daysBetween', () => {
+  it('counts whole days, positive forward and negative backward', () => {
+    expect(daysBetween('2023-01-01', '2024-01-01')).toBe(365)
+    expect(daysBetween('2024-01-01', '2025-01-01')).toBe(366)
+    expect(daysBetween('2024-03-01', '2024-02-01')).toBe(-29)
   })
 })

@@ -8,6 +8,10 @@ test per lot, the 100 000 CZK exemption, dividends, and the credit for tax withh
 
 Single user, `localhost`, no auth, no cloud. Czech and English interface.
 
+The portfolio screen also answers the one question that matters: **are you beating the S&P 500,
+and by how much** — every deposit replayed into the total-return index on the same day, in crowns,
+with the money-weighted annual return of both.
+
 **Status:** a finished snapshot, published as a reference. It is not actively developed and there
 is no roadmap; issues and pull requests are welcome but may sit.
 

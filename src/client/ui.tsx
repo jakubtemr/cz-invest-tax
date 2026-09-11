@@ -4,11 +4,23 @@ import { useLang } from './i18n/index.js'
 // Shared presentation primitives. Screens compose these instead of writing raw markup, so a card
 // or a warning banner looks the same wherever it turns up.
 
-export function Card({ label, value, children }: { label: string; value: string; children?: ReactNode }) {
+export type Tone = 'pos' | 'neg' | 'muted'
+
+export function Card({
+  label,
+  value,
+  tone,
+  children,
+}: {
+  label: string
+  value: string
+  tone?: Tone
+  children?: ReactNode
+}) {
   return (
     <div className="card">
       <div className="broker">{label}</div>
-      <div className="big">{value}</div>
+      <div className={tone ? `big ${tone}` : 'big'}>{value}</div>
       {children && <div className="sub">{children}</div>}
     </div>
   )

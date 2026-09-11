@@ -22,6 +22,7 @@ src/
     manual/        manual Freedom24 entry, price updates, the corporate-action transfer tool
     portfolio/     read queries for the portfolio screen
     fx/            CNB daily rates with a database cache
+    benchmark/     the S&P 500 comparison: shadow portfolio, XIRR, Yahoo price cache
     tax/           the tax module (below)
     router.ts      the oRPC router - the single HTTP boundary, Zod-validated input
   client/
@@ -75,6 +76,14 @@ and this is what makes the interface translatable.
 
 **One FIFO.** Both the tax overview and the corporate-action transfer tool call the same
 `fifoMatch`. Two matching rules would eventually disagree, and the disagreement would be silent.
+
+**The benchmark is a replay, not a chart.** Whether the portfolio beats the S&P 500 is answered
+by replaying every deposit and withdrawal into the total-return index on the same day, at the CNB
+rate of that day, and valuing the result on the day of the latest snapshot. Comparing index returns
+over a fixed window would punish or reward the timing of deposits the investor never chose against
+the index; the shadow portfolio faces exactly the same cash on exactly the same days. Both sides
+also get a money-weighted annual return (XIRR). Daily closes come from Yahoo's chart endpoint,
+behind an interface with a fake in tests, and are cached in `benchmark_prices`.
 
 **Layers.** HTTP handler → service → database. The router parses input and calls a service; services
 own the logic; nothing skips a layer.
